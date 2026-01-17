@@ -10,6 +10,10 @@
 #include "StarRoot.hpp"
 #include "StarText.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include "emscripten.h"
+#endif
+
 namespace Star {
 
 PlayerStorage::PlayerStorage(String const& storageDir) {
@@ -174,6 +178,14 @@ Json PlayerStorage::savePlayer(PlayerPtr const& player) {
     auto fileName = strf("{}.player", uuidFileName(uuid));
     VersionedJson::writeFile(versionedJson, File::relativeTo(m_storageDirectory, fileName));
     Logger::debug("Saved player {} to {}", Text::stripEscapeCodes(player->name()), fileName);
+
+#ifdef __EMSCRIPTEN__
+    MAIN_THREAD_EM_ASM(
+      persistfs(function () {
+        console.log("Player saved");
+      });
+    );
+#endif
   }
   return newPlayerData;
 }
@@ -237,6 +249,14 @@ void PlayerStorage::deletePlayer(Uuid const& uuid) {
     removeIfExists(backupPrefix, strf(".player.bak{}", i));
     removeIfExists(backupPrefix, strf(".shipworld.bak{}", i));
   }
+
+#ifdef __EMSCRIPTEN__
+  MAIN_THREAD_EM_ASM(
+    persistfs(function () {
+      console.log("Player deleted");
+    });
+  );
+#endif
 }
 
 WorldChunks PlayerStorage::loadShipData(Uuid const& uuid) {

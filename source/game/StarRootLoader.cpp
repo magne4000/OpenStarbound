@@ -159,10 +159,39 @@ pair<RootUPtr, RootLoader::Options> RootLoader::commandInitOrDie(int argc, char*
   return {std::move(root), p.second};
 }
 
+#ifdef __EMSCRIPTEN__
+// Hardcoded boot configuration for Emscripten/WebAssembly builds
+Json const EmscriptenBootConfig = Json::parseJson(R"JSON(
+{
+  "assetDirectories": ["assets/", "mods/"],
+  "storageDirectory": "./storage/",
+  "assetsSettings": {
+    "pathIgnore": [],
+    "digestIgnore": [".*"]
+  },
+  "defaultConfiguration": {
+    "allowAdminCommandsFromAnyone": true,
+    "anonymousConnectionsAreAdmin": true,
+    "bindings": {
+      "KeybindingClear": [{
+        "type": "key",
+        "value": "Del",
+        "mods": []
+      }]
+    }
+  }
+}
+)JSON");
+#endif
+
 Root::Settings RootLoader::rootSettingsForOptions(Options const& options) const {
   try {
+#ifdef __EMSCRIPTEN__
+    Json bootConfig = EmscriptenBootConfig;
+#else
     String bootConfigFile = options.parameters.value("bootconfig").maybeFirst().value("sbinit.config");
     Json bootConfig = Json::parseJson(File::readFileString(bootConfigFile));
+#endif
 
     Json assetsSettings = jsonMerge(
         BaseAssetsSettings,

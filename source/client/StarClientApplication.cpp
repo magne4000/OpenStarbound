@@ -34,6 +34,10 @@
 #include "imgui.h"
 #include "imgui_freetype.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/html5.h>
+#endif
+
 #if defined STAR_SYSTEM_WINDOWS
 #include <windows.h>
 extern "C" __declspec(dllexport) DWORD NvOptimusEnablement = 1;
@@ -185,6 +189,22 @@ void ClientApplication::shutdown() {
   m_statistics.reset();
 }
 
+#ifdef __EMSCRIPTEN__
+EM_BOOL fullscreenCallback(int eventType, const EmscriptenFullscreenChangeEvent *ev, void *appController) {
+  auto configuration = Root::singleton().configuration();
+
+  if (ev->isFullscreen == 1) {
+    configuration->set("fullscreen", true);
+    ((ApplicationController*)appController)->setFullscreenWindow(jsonToVec2U(configuration->get("fullscreenResolution")));
+  } else {
+    configuration->set("fullscreen", false);
+    ((ApplicationController*)appController)->setNormalWindow(jsonToVec2U(configuration->get("windowedResolution")));
+  }
+
+  return 0;
+}
+#endif
+
 void ClientApplication::applicationInit(ApplicationControllerPtr appController) {
   Application::applicationInit(appController);
 
@@ -220,6 +240,11 @@ void ClientApplication::applicationInit(ApplicationControllerPtr appController) 
   appController->setTargetUpdateRate(updateRate);
   appController->setVSyncEnabled(vsync);
   appController->setCursorHardware(configuration->get("hardwareCursor").optBool().value(true));
+
+#ifdef __EMSCRIPTEN__
+  // Register fullscreen change callback for Emscripten
+  emscripten_set_fullscreenchange_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT, appController.get(), 1, fullscreenCallback);
+#endif
 
   // Must be called before anything that can invoke an asset load.
   loadMods();

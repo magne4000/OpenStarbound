@@ -1,4 +1,5 @@
 /build/
+/build.native/
 /build_linux/
 /out/
 /source/out/
@@ -6,7 +7,12 @@
 /windows/
 /linux/
 /mac/
-/dist/
+/dist/*
+!/dist/index.html
+!/dist/fsafs.js
+!/dist/idb-keyval.js
+!/dist/post.js
+/dist.native/
 /installer/
 /vcpkg/
 /client_distribution/

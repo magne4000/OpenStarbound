@@ -61,18 +61,24 @@ endif()
 
 # Either TRUE or FALSE
 if(NOT DEFINED STAR_LITTLE_ENDIAN)
-  include(TestBigEndian)
-  test_big_endian(BIGENDIAN)
-  if(NOT BIGENDIAN)
-    set(STAR_LITTLE_ENDIAN TRUE)
+  if(NOT EMSCRIPTEN)
+    include(TestBigEndian)
+    test_big_endian(BIGENDIAN)
+    if(NOT BIGENDIAN)
+      set(STAR_LITTLE_ENDIAN TRUE)
+    else()
+      set(STAR_LITTLE_ENDIAN FALSE)
+    endif()
   else()
-    set(STAR_LITTLE_ENDIAN FALSE)
+    set(STAR_LITTLE_ENDIAN TRUE)
   endif()
 endif()
 
 # System name, like windows, macos, linux, freebsd, or (generic) unix
 if(NOT DEFINED STAR_SYSTEM)
-  if(WIN32)
+  if(EMSCRIPTEN)
+    set(STAR_SYSTEM "emscripten")
+  elseif(WIN32)
     set(STAR_SYSTEM "windows")
   elseif(APPLE AND ${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     set(STAR_SYSTEM "macos")
@@ -306,24 +312,62 @@ elseif(STAR_COMPILER_CLANG)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-export_dynamic")
     set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LANGUAGE_STANDARD "c++17")
     set(CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libc++")
-  elseif()
+  elseif(NOT EMSCRIPTEN)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread -D_REENTRANT")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -D_REENTRANT")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--export-dynamic")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--export-dynamic")
   endif()
 
+  if(EMSCRIPTEN)
+    # Emscripten-specific flags
+    set(EMSCRIPTEN_LINKER_FLAGS_EXCEPTIONS "--profiling-funcs -sASSERTIONS=2 -sSTACK_SIZE=10MB")
+    set(EMSCRIPTEN_FLAGS_EXCEPTIONS "-fwasm-exceptions -sSUPPORT_LONGJMP=wasm")
+
+    set(EMSCRIPTEN_LINKER_FLAGS_PORTS "-lGLEW")
+    set(EMSCRIPTEN_FLAGS_PORTS "-sUSE_OGG=1 -sUSE_SDL=2 -sUSE_VORBIS=1 -sUSE_ZLIB=1 -sUSE_FREETYPE=1 -sUSE_LIBPNG=1 -sUSE_SDL_MIXER=2")
+
+    set(EMSCRIPTEN_LINKER_FLAGS_MEMORY "-sINITIAL_MEMORY=512MB -sALLOW_MEMORY_GROWTH")
+
+    set(EMSCRIPTEN_LINKER_FLAGS_WEBGL "-sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2")
+
+    set(EMSCRIPTEN_LINKER_FLAGS_ESM "-sEXPORT_ES6=1 -sMODULARIZE=1 -sEXPORT_NAME=loadWASM -sEXPORTED_RUNTIME_METHODS=callMain,FS,PATH --post-js=${PROJECT_SOURCE_DIR}/../dist/post.js")
+
+    # -Wl,-u,htonl added to circumvent an issue with some emscripten versions
+    # See https://github.com/emscripten-core/emscripten/issues/16836#issuecomment-1578846647
+    set(EMSCRIPTEN_LINKER_FLAGS_OTHER "-sWASM_BIGINT -sPTHREAD_POOL_SIZE=18 -lidbfs.js --preload-file ${PROJECT_SOURCE_DIR}/../assets@assets -Wl,-u,htonl")
+    set(EMSCRIPTEN_FLAGS_OTHER "-pthread -sUSE_PTHREADS -sSHARED_MEMORY --minify 0 -flto")
+
+    set(EMSCRIPTEN_LINKER_FLAGS "${EMSCRIPTEN_LINKER_FLAGS_EXCEPTIONS} ${EMSCRIPTEN_FLAGS_EXCEPTIONS} ${EMSCRIPTEN_LINKER_FLAGS_PORTS} ${EMSCRIPTEN_FLAGS_PORTS} ${EMSCRIPTEN_LINKER_FLAGS_MEMORY} ${EMSCRIPTEN_LINKER_FLAGS_WEBGL} ${EMSCRIPTEN_LINKER_FLAGS_ESM} ${EMSCRIPTEN_LINKER_FLAGS_OTHER} ${EMSCRIPTEN_FLAGS_OTHER}")
+    set(EMSCRIPTEN_COMPILER_FLAGS "${EMSCRIPTEN_FLAGS_EXCEPTIONS} ${EMSCRIPTEN_FLAGS_PORTS} ${EMSCRIPTEN_FLAGS_OTHER}")
+  endif()
+
   set(CMAKE_C_FLAGS_DEBUG "-g")
   set(CMAKE_CXX_FLAGS_DEBUG "-g")
 
-  set(CMAKE_C_FLAGS_RELWITHASSERTS "-g -O3 -ffast-math")
-  set(CMAKE_CXX_FLAGS_RELWITHASSERTS "-g -O3 -ffast-math")
+  if(EMSCRIPTEN)
+    set(CMAKE_C_FLAGS_RELWITHASSERTS "-Oz ${EMSCRIPTEN_COMPILER_FLAGS}")
+    set(CMAKE_CXX_FLAGS_RELWITHASSERTS "-Oz ${EMSCRIPTEN_COMPILER_FLAGS}")
 
-  set(CMAKE_C_FLAGS_RELWITHDEBINFO "-gline-tables-only -gz=zlib -DNDEBUG -O3 -ffast-math")
-  set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-gline-tables-only -gz=zlib -DNDEBUG -O3 -ffast-math")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "-g -O0 ${EMSCRIPTEN_COMPILER_FLAGS}")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O0 ${EMSCRIPTEN_COMPILER_FLAGS}")
 
-  set(CMAKE_C_FLAGS_RELEASE "-DNDEBUG -O3 -ffast-math")
-  set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3 -ffast-math")
+    set(CMAKE_C_FLAGS_RELEASE "-Oz ${EMSCRIPTEN_COMPILER_FLAGS}")
+    set(CMAKE_CXX_FLAGS_RELEASE "-Oz ${EMSCRIPTEN_COMPILER_FLAGS}")
+
+    set(CMAKE_EXE_LINKER_FLAGS_RELWITHASSERTS "-Oz ${EMSCRIPTEN_LINKER_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "-g -O0 ${EMSCRIPTEN_LINKER_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-Oz ${EMSCRIPTEN_LINKER_FLAGS}")
+  else()
+    set(CMAKE_C_FLAGS_RELWITHASSERTS "-g -O3 -ffast-math")
+    set(CMAKE_CXX_FLAGS_RELWITHASSERTS "-g -O3 -ffast-math")
+
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "-gline-tables-only -gz=zlib -DNDEBUG -O3 -ffast-math")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-gline-tables-only -gz=zlib -DNDEBUG -O3 -ffast-math")
+
+    set(CMAKE_C_FLAGS_RELEASE "-DNDEBUG -O3 -ffast-math")
+    set(CMAKE_CXX_FLAGS_RELEASE "-DNDEBUG -O3 -ffast-math")
+  endif()
 
   set(CMAKE_SKIP_BUILD_RPATH TRUE)
 
@@ -458,7 +502,30 @@ endif()
 # Find all required external libraries, based on build settings...
 find_package(PkgConfig)
 
-if(STAR_USE_JEMALLOC)
+if(EMSCRIPTEN)
+  # Set Emscripten library paths to use system (emscripten ports)
+  set(ZLIB_LIBRARY "${EMSCRIPTEN_SYSROOT}")
+  set(ZLIB_INCLUDE_DIR "${EMSCRIPTEN_SYSROOT}/include/")
+
+  set(FREETYPE_LIBRARY "${EMSCRIPTEN_SYSROOT}")
+  set(FREETYPE_INCLUDE_DIRS "${EMSCRIPTEN_SYSROOT}/include/")
+
+  set(PNG_LIBRARY "${EMSCRIPTEN_SYSROOT}")
+  set(PNG_INCLUDE_DIR "${EMSCRIPTEN_SYSROOT}/include/")
+  set(PNG_PNG_INCLUDE_DIR "${EMSCRIPTEN_SYSROOT}/include/")
+
+  set(VORBIS_LIBRARY "${EMSCRIPTEN_SYSROOT}")
+  set(VORBISFILE_LIBRARY "${EMSCRIPTEN_SYSROOT}")
+  set(VORBIS_INCLUDE_DIR "${EMSCRIPTEN_SYSROOT}/include/")
+
+  set(OGG_LIBRARY "${EMSCRIPTEN_SYSROOT}")
+  set(OGG_INCLUDE_DIR "${EMSCRIPTEN_SYSROOT}/include/")
+
+  set(GLEW_LIBRARY "${EMSCRIPTEN_SYSROOT}")
+  set(GLEW_INCLUDE_DIR "${EMSCRIPTEN_SYSROOT}/include/")
+endif()
+
+if(STAR_USE_JEMALLOC AND NOT EMSCRIPTEN)
   pkg_check_modules(JEMALLOC REQUIRED IMPORTED_TARGET GLOBAL jemalloc)
 
   set(STAR_EXT_LIBS PkgConfig::JEMALLOC)
@@ -481,10 +548,15 @@ find_package(OggVorbis REQUIRED)
 find_package(zstd CONFIG REQUIRED)
 find_package(re2 CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
-include_directories(SYSTEM
-        ${FREETYPE_INCLUDE_DIRS}
-        ${OGGVORBIS_INCLUDE_DIR}
-)
+
+if(EMSCRIPTEN)
+  include_directories(SYSTEM "${EMSCRIPTEN_SYSROOT}/include/")
+else()
+  include_directories(SYSTEM
+          ${FREETYPE_INCLUDE_DIRS}
+          ${OGGVORBIS_INCLUDE_DIR}
+  )
+endif()
 
 set(STAR_EXT_LIBS ${STAR_EXT_LIBS}
         ZLIB::ZLIB
@@ -507,7 +579,7 @@ else()
   message(STATUS "Wayland was not found")
 endif()
 
-if(STAR_SYSTEM_FAMILY STREQUAL "unix")
+if(STAR_SYSTEM_FAMILY STREQUAL "unix" AND NOT EMSCRIPTEN)
   set_flag(STAR_USE_CPPTRACE)
   find_package(cpptrace CONFIG REQUIRED)
   set(STAR_EXT_LIBS ${STAR_EXT_LIBS} cpptrace::cpptrace)
@@ -515,6 +587,11 @@ if(STAR_SYSTEM_FAMILY STREQUAL "unix")
 endif()
 
 if(STAR_BUILD_GUI)
+  if(EMSCRIPTEN)
+    set(SDL2_LIBRARY "${EMSCRIPTEN_SYSROOT}")
+    set(SDL2_INCLUDE_DIR "${EMSCRIPTEN_SYSROOT}/include/")
+  endif()
+
   find_package(SDL3 CONFIG REQUIRED)
 
   set(STAR_EXT_GUI_LIBS
@@ -553,12 +630,20 @@ endif()
 set(BUILD_SHARED_LIBS false)
 
 # First set output dir for the generic no-config case (e.g. macos / linux)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/../dist)
+if(EMSCRIPTEN)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/../dist)
+else()
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/../dist.native)
+endif()
 
 # Second, set output dir for multi-config builds (e.g. msvc)
 foreach(OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES})
   string(TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG)
-  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_SOURCE_DIR}/../dist)
+  if(EMSCRIPTEN)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_SOURCE_DIR}/../dist)
+  else()
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_SOURCE_DIR}/../dist.native)
+  endif()
 endforeach(OUTPUTCONFIG CMAKE_CONFIGURATION_TYPES)
 
 # External code included with starbound source, which core depends on
@@ -602,11 +687,13 @@ if(BUILD_TESTING)
   add_subdirectory(test)
 endif()
 
-# Starbound stand-alone server.
-add_subdirectory(server)
+if(NOT EMSCRIPTEN)
+  # Starbound stand-alone server.
+  add_subdirectory(server)
 
-# cmdline utilities
-add_subdirectory(utility)
+  # cmdline utilities
+  add_subdirectory(utility)
+endif()
 
 if(STAR_BUILD_GUI)
   # Handles creating windows, keyboard / mouse / joystick input, and the 2d
