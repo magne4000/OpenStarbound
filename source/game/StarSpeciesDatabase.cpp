@@ -217,7 +217,7 @@ SpeciesDefinition::SpeciesDefinition(Json const& config) {
   m_buildScripts = jsonToStringList(config.getArray("buildScripts", JsonArray()));
   m_creationScripts = jsonToStringList(config.getArray("createScripts", JsonArray()));
 
-  Json tooltip = config.get("charCreationTooltip");
+  Json tooltip = config.getObject("charCreationTooltip", JsonObject());
 
   m_tooltip.title = tooltip.getString("title", "");
   m_tooltip.subTitle = tooltip.getString("subTitle", "");

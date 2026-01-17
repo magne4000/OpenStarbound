@@ -12,6 +12,10 @@
 #include "StarMaterialDatabase.hpp"
 #include "StarLiquidsDatabase.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include "emscripten.h"
+#endif
+
 namespace Star {
 
 WorldChunks WorldStorage::getWorldChunksUpdate(WorldChunks const& oldChunks, WorldChunks const& newChunks) {
@@ -63,6 +67,13 @@ WorldStorage::WorldStorage(Vec2U const& worldSize, IODevicePtr const& device, Wo
 
   m_db.insert(metadataKey(), writeWorldMetadata(WorldMetadataStore{worldSize, VersionedJson()}));
   m_db.commit();
+#ifdef __EMSCRIPTEN__
+  MAIN_THREAD_EM_ASM(
+    persistfs(function () {
+      console.log("World creation persisted");
+    });
+  );
+#endif
 }
 
 WorldStorage::WorldStorage(IODevicePtr const& device, WorldGeneratorFacadePtr const& generatorFacade) : WorldStorage() {
@@ -396,6 +407,13 @@ void WorldStorage::sync() {
     for (auto const& pair : m_sectorMetadata)
       syncSector(pair.first);
     m_db.commit();
+#ifdef __EMSCRIPTEN__
+    MAIN_THREAD_EM_ASM(
+      persistfs(function () {
+        console.log("World commit persisted");
+      });
+    );
+#endif
   } catch (std::exception const& e) {
     m_db.rollback();
     m_db.close();

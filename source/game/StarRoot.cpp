@@ -53,6 +53,10 @@
 #include "StarRadioMessageDatabase.hpp"
 #include "StarCollectionDatabase.hpp"
 
+#ifdef __EMSCRIPTEN__
+#include "emscripten.h"
+#endif
+
 namespace Star {
 
 namespace {
@@ -77,8 +81,22 @@ Root::Root(Settings settings) : RootBase() {
   if (m_settings.runtimeConfigFile)
     m_runtimeConfigFile = toStoragePath(*m_settings.runtimeConfigFile);
 
-  if (!File::isDirectory(m_settings.storageDirectory))
+  if (!File::isDirectory(m_settings.storageDirectory)) {
     File::makeDirectory(m_settings.storageDirectory);
+#ifdef __EMSCRIPTEN__
+    MAIN_THREAD_EM_ASM(
+
+      FS.mount(IDBFS, {}, '/storage');
+
+      FS.syncfs(true, function (err) {
+        if (err) {
+          console.error(err);
+        }
+        console.log("Sync load %s persistent storage", '/storage');
+      });
+    );
+#endif
+  }
 
   if (m_settings.logFile) {
     String logFile = File::relativeTo(m_settings.logDirectory.value(m_settings.storageDirectory), *m_settings.logFile);
