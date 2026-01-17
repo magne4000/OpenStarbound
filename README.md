@@ -277,3 +277,72 @@ LD_LIBRARY_PATH="$LD_LIBRARY_PATH:./" padsp ./starbound "$@"`
 
   </details>
 </details>
+
+<details>
+<summary><b>Emscripten (WebAssembly)</b></summary>
+
+OpenStarbound can be compiled to WebAssembly to run in a web browser using Emscripten.
+
+**Prerequisites:**
+* A working native Linux build environment (see Linux build instructions above)
+* [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) installed and activated
+  * After installing, run `source ./emsdk_env.sh` to set up the environment
+
+**Build Process:**
+
+1. **First, build native tools** (needed for asset packing):
+   ```bash
+   # From the repository root
+   ./scripts/linux/setup.sh
+   ./scripts/linux/build.sh
+   ```
+   This creates the native `asset_packer` tool in `dist.native/`.
+
+2. **Pack game assets**:
+   ```bash
+   ./scripts/emscripten/pack.sh
+   ```
+   This creates `assets/packed.pak` from your Starbound installation's assets.
+
+3. **Configure Emscripten build**:
+   ```bash
+   ./scripts/emscripten/setup.sh
+   ```
+   This runs CMake with Emscripten toolchain.
+
+4. **Build WebAssembly binaries**:
+   ```bash
+   ./scripts/emscripten/build.sh
+   ```
+   This compiles the game to WebAssembly. The output will be in `dist/` (separate from native `dist.native/`).
+
+**Running the Web Version:**
+
+You need a web server with Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy headers (required for SharedArrayBuffer support):
+
+```bash
+# Install statikk (only once)
+npm install -g statikk
+
+# From the repository root, serve the dist/ directory
+cd dist
+statikk --port 8080 --coi
+```
+
+Then open `http://localhost:8080` in your browser.
+
+**Web Version Features:**
+* Persistent storage using IndexedDB (IDBFS)
+* Optional mod loading from local filesystem (via File System Access API)
+* Fullscreen support
+* Threading via Web Workers (SharedArrayBuffer)
+* WebGL 2.0 rendering
+
+**Notes:**
+* Game assets (`packed.pak`) must be from your legitimate Starbound installation
+* Save data persists in the browser's IndexedDB storage
+* The first load will download ~500MB+ of game data
+* Requires a modern browser with WebAssembly threads support (Chrome/Edge 93+, Firefox 102+)
+* Server/utility executables are not built for the web target
+
+</details>
