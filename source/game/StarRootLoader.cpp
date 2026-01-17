@@ -161,8 +161,13 @@ pair<RootUPtr, RootLoader::Options> RootLoader::commandInitOrDie(int argc, char*
 
 Root::Settings RootLoader::rootSettingsForOptions(Options const& options) const {
   try {
+#ifdef __EMSCRIPTEN__
+    // Use hardcoded boot config for Emscripten
+    Json bootConfig = Json::parseJson("{\"assetDirectories\":[\"assets/\",\"mods/\"],\"storageDirectory\":\"./storage/\",\"assetsSettings\":{\"pathIgnore\":[],\"digestIgnore\":[\".*\"]},\"defaultConfiguration\":{\"allowAdminCommandsFromAnyone\":true,\"anonymousConnectionsAreAdmin\":true,\"bindings\":{\"KeybindingClear\":[{\"type\":\"key\",\"value\":\"Del\",\"mods\":[]}]}}}");
+#else
     String bootConfigFile = options.parameters.value("bootconfig").maybeFirst().value("sbinit.config");
     Json bootConfig = Json::parseJson(File::readFileString(bootConfigFile));
+#endif
 
     Json assetsSettings = jsonMerge(
         BaseAssetsSettings,
