@@ -92,7 +92,7 @@ Root::Root(Settings settings) : RootBase() {
         if (err) {
           console.error(err);
         }
-        console.log("Sync load %s persistent storage", '/storage');
+        console.log("Sync load persistent storage from /storage");
       });
     );
 #endif
